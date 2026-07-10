@@ -1,0 +1,11 @@
+version: "3.8"
+
+services:
+  snmp-target:
+    image: polinux/snmpd
+    container_name: snmp-target
+    ports:
+      - "1161:161/udp"
+    volumes:
+      - ./snmpd.conf:/etc/snmp/snmpd.conf:ro
+    restart: unless-stopped
