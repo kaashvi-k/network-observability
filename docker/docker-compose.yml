@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   snmp-target:
-    image: polinux/snmpd
+    build: .
     container_name: snmp-target
     ports:
       - "1161:161/udp"
