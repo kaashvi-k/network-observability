@@ -9,3 +9,18 @@ services:
     volumes:
       - ./snmpd.conf:/etc/snmp/snmpd.conf:ro
     restart: unless-stopped
+  postgres:
+    image: postgres:16
+    container_name: telemetry-db
+    environment:
+      POSTGRES_USER: telemetry
+      POSTGRES_PASSWORD: telemetry_pass
+      POSTGRES_DB: telemetry
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+volumes:
+  pgdata:
