@@ -4,7 +4,7 @@ import psycopg2
 
 # SNMP target
 HOST = "localhost"
-PORT = "1161"
+PORT = "1162"
 COMMUNITY = "public"
 DEVICE_NAME = "snmp-target"
 
@@ -28,7 +28,12 @@ OIDS = {
 def snmp_get(oid, numeric=False):
     output_fmt = "qvt" if numeric else "qv"
     cmd = ["snmpget", "-v2c", "-c", COMMUNITY, "-O", output_fmt, f"{HOST}:{PORT}", oid]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+    except subprocess.TimeoutExpired:
+        print(f"WARNING: snmpget timed out for {oid}")
+        return None
+
     if result.returncode != 0:
         print(f"WARNING: snmpget failed for {oid}: {result.stderr.strip()}")
         return None
@@ -38,7 +43,6 @@ def snmp_get(oid, numeric=False):
     except ValueError:
         print(f"WARNING: could not parse value '{value}' for {oid}")
         return None
-
 
 def poll_once():
     return {
