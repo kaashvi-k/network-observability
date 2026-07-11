@@ -5,7 +5,7 @@ services:
     build: .
     container_name: snmp-target
     ports:
-      - "1161:161/udp"
+      - "1161:1611/udp"
     volumes:
       - ./snmpd.conf:/etc/snmp/snmpd.conf:ro
     restart: unless-stopped
@@ -35,6 +35,21 @@ services:
     restart: unless-stopped
     depends_on:
       - postgres
+
+  router1:
+    build:
+      context: .
+      dockerfile: Dockerfile.frr
+    container_name: router1
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+    ports:
+        - "1162:1611/udp"
+    volumes:
+      - ./frr-config:/etc/frr
+    restart: unless-stopped
+
 volumes:
   pgdata:
   grafanadata:

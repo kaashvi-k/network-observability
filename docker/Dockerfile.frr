@@ -1,0 +1,12 @@
+FROM frrouting/frr:latest
+
+RUN apk add --no-cache net-snmp net-snmp-tools
+
+# Remove Alpine's default snmpd.conf so it never interferes with our own config
+RUN rm -f /etc/snmp/snmpd.conf
+
+EXPOSE 1611/udp
+
+# FRR's own entrypoint starts zebra/ospfd/etc — we need snmpd running too.
+# Simplest approach: append an snmpd startup line to FRR's existing start script.
+CMD ["/bin/sh", "-c", "snmpd -c /etc/frr/snmpd.conf -C -f & /usr/lib/frr/docker-start"]

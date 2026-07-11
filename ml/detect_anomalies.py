@@ -1,5 +1,6 @@
 import psycopg2
 import pandas as pd
+from sqlalchemy import create_engine
 from sklearn.ensemble import IsolationForest
 
 DB_CONFIG = {
@@ -10,18 +11,20 @@ DB_CONFIG = {
     "dbname": "telemetry",
 }
 
-def load_data(conn):
+def load_data():
+    engine = create_engine("postgresql+psycopg2://telemetry:telemetry_pass@localhost:5432/telemetry")
     query = """
         SELECT id, timestamp, in_octets, out_octets, in_errors, out_errors, is_synthetic
         FROM telemetry
         ORDER BY id
     """
-    return pd.read_sql(query, conn)
+    return pd.read_sql(query, engine)
+
 
 def main():
-    conn = psycopg2.connect(**DB_CONFIG)
-    df = load_data(conn)
-    conn.close()
+ 
+    df = load_data()
+   
 
     print(f"Loaded {len(df)} rows ({df['is_synthetic'].sum()} synthetic, {(~df['is_synthetic']).sum()} real)\n")
 
