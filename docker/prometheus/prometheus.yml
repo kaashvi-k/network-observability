@@ -1,0 +1,20 @@
+global:
+  scrape_interval: 30s
+
+scrape_configs:
+  - job_name: 'snmp'
+    static_configs:
+      - targets:
+          - snmp-target:161   # our original SNMP container
+          - router1:1611      # our FRRouting router
+    metrics_path: /snmp
+    params:
+      module: [if_mib]
+      auth: [public_v2]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: snmp-exporter:9116
