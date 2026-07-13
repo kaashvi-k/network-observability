@@ -16,12 +16,15 @@ DB_CONFIG = {
 }
 
 OIDS = {
-    "sysUptime":   "1.3.6.1.2.1.1.3.0",
-    "ifInOctets":  "1.3.6.1.2.1.2.2.1.10.2",
-    "ifOutOctets": "1.3.6.1.2.1.2.2.1.16.2",
-    "ifInErrors":  "1.3.6.1.2.1.2.2.1.14.2",
-    "ifOutErrors": "1.3.6.1.2.1.2.2.1.20.2",
+    "sysUptime":    "1.3.6.1.2.1.1.3.0",
+    "ifInOctets":   "1.3.6.1.2.1.2.2.1.10.2",
+    "ifOutOctets":  "1.3.6.1.2.1.2.2.1.16.2",
+    "ifInErrors":   "1.3.6.1.2.1.2.2.1.14.2",
+    "ifOutErrors":  "1.3.6.1.2.1.2.2.1.20.2",
+    "memTotal":     "1.3.6.1.2.1.25.2.3.1.5.1",
+    "memUsed":      "1.3.6.1.2.1.25.2.3.1.6.1",
 }
+
 
 def snmp_get(oid, numeric=False):
     output_fmt = "qvt" if numeric else "qv"
@@ -45,6 +48,7 @@ def snmp_get(oid, numeric=False):
         print(f"WARNING: could not parse value '{value}' for {oid}")
         return None, elapsed, False
 
+
 def poll_once():
     results = {}
     latencies = []
@@ -61,14 +65,15 @@ def poll_once():
     results["poll_failed"] = any_failure
     return results
 
+
 def insert_reading(conn, data):
     with conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO telemetry
                 (device_name, sys_uptime_ticks, in_octets, out_octets, in_errors, out_errors,
-                 avg_latency_ms, poll_failed)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                 avg_latency_ms, poll_failed, mem_total_kb, mem_used_kb)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 DEVICE_NAME,
@@ -79,9 +84,12 @@ def insert_reading(conn, data):
                 data["ifOutErrors"],
                 data["avg_latency_ms"],
                 data["poll_failed"],
+                data["memTotal"],
+                data["memUsed"],
             ),
         )
     conn.commit()
+
 
 if __name__ == "__main__":
     print("Connecting to Postgres...")
