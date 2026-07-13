@@ -49,6 +49,34 @@ def snmp_get(oid, numeric=False):
         return None, elapsed, False
 
 
+def snmp_walk_average(oid_prefix):
+    """Walk a table OID and return the average of all returned integer values."""
+    cmd = ["snmpwalk", "-v2c", "-c", COMMUNITY, "-O", "qv", f"{HOST}:{PORT}", oid_prefix]
+    start = time.monotonic()
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+    except subprocess.TimeoutExpired:
+        elapsed = time.monotonic() - start
+        print(f"WARNING: snmpwalk timed out for {oid_prefix}")
+        return None, elapsed, False
+
+    elapsed = time.monotonic() - start
+    if result.returncode != 0:
+        print(f"WARNING: snmpwalk failed for {oid_prefix}: {result.stderr.strip()}")
+        return None, elapsed, False
+
+    values = []
+    for line in result.stdout.strip().splitlines():
+        try:
+            values.append(int(line.strip()))
+        except ValueError:
+            continue
+
+    if not values:
+        return None, elapsed, False
+    return round(sum(values) / len(values), 2), elapsed, True
+
+
 def poll_once():
     results = {}
     latencies = []
@@ -61,6 +89,12 @@ def poll_once():
         if not success:
             any_failure = True
 
+    cpu_avg, cpu_elapsed, cpu_success = snmp_walk_average("1.3.6.1.2.1.25.3.3.1.2")
+    results["cpuLoadAvg"] = cpu_avg
+    latencies.append(cpu_elapsed)
+    if not cpu_success:
+        any_failure = True
+
     results["avg_latency_ms"] = round(sum(latencies) / len(latencies) * 1000, 2)
     results["poll_failed"] = any_failure
     return results
@@ -72,8 +106,8 @@ def insert_reading(conn, data):
             """
             INSERT INTO telemetry
                 (device_name, sys_uptime_ticks, in_octets, out_octets, in_errors, out_errors,
-                 avg_latency_ms, poll_failed, mem_total_kb, mem_used_kb)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 avg_latency_ms, poll_failed, mem_total_kb, mem_used_kb, cpu_load_avg)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 DEVICE_NAME,
@@ -86,6 +120,7 @@ def insert_reading(conn, data):
                 data["poll_failed"],
                 data["memTotal"],
                 data["memUsed"],
+                data["cpuLoadAvg"],
             ),
         )
     conn.commit()
