@@ -5,7 +5,7 @@ services:
     build: .
     container_name: snmp-target
     ports:
-      - "1161:1611/udp"
+      - "1161:161/udp"
     volumes:
       - ./snmpd.conf:/etc/snmp/snmpd.conf:ro
     restart: unless-stopped
