@@ -10,8 +10,6 @@ SENDER_APP_PASSWORD = os.environ.get("ALERT_EMAIL_APP_PASSWORD")
 RECIPIENT_EMAIL = os.environ.get("ALERT_EMAIL_ADDRESS")
 
 
-export ALERT_EMAIL_ADDRESS="kaashvikakkar@gmail.com"
-export ALERT_EMAIL_APP_PASSWORD="qpom mfkq bant zlcx"
 
 
 def send_alert_email(severity, device_name, reason, telemetry_id):
@@ -39,6 +37,4 @@ def send_alert_email(severity, device_name, reason, telemetry_id):
 
 
 if __name__ == "__main__":
-    # quick standalone test
-    send_alert_email("CRITICAL", "router1", "SNMP poll failure/timeout; high latency (1928.99ms)", 116)
 
