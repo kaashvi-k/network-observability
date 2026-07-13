@@ -37,4 +37,5 @@ def send_alert_email(severity, device_name, reason, telemetry_id):
 
 
 if __name__ == "__main__":
-
+    # quick standalone test
+    send_alert_email("CRITICAL", "router1", "SNMP poll failure/timeout; high latency (1928.99ms)", 116)
