@@ -2,6 +2,7 @@ import psycopg2
 import pandas as pd
 import logging
 from sklearn.ensemble import IsolationForest
+from alert_email import send_alert_email
 
 DB_CONFIG = {
     "host": "localhost",
@@ -35,6 +36,7 @@ def classify_severity(row):
         return "WARNING"
     return "INFO"
 
+
 def raise_alert(conn, row):
     severity = classify_severity(row)
     reason_parts = []
@@ -63,6 +65,12 @@ def raise_alert(conn, row):
         logging.warning(log_line)
     else:
         logging.info(log_line)
+
+    # Only email for real, actionable severity — INFO-level anomalies stay in the log/DB only,
+    # to avoid flooding an inbox with low-priority noise (a real design decision, worth mentioning)
+    if severity in ("CRITICAL", "WARNING"):
+        send_alert_email(severity, row["device_name"], reason, row["id"])
+
 
 def main():
     conn = psycopg2.connect(**DB_CONFIG)
