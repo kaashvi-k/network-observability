@@ -1,5 +1,6 @@
 import psycopg2
 import pandas as pd
+import logging
 from sklearn.ensemble import IsolationForest
 
 DB_CONFIG = {
@@ -10,6 +11,13 @@ DB_CONFIG = {
     "dbname": "telemetry",
 }
 
+# Set up syslog-style logging: timestamped, severity-tagged, written to a file
+logging.basicConfig(
+    filename="alerts.log",
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
+
 def load_data(conn):
     query = """
         SELECT id, timestamp, device_name, in_octets, out_octets,
@@ -19,35 +27,64 @@ def load_data(conn):
     """
     return pd.read_sql(query, conn)
 
+def classify_severity(row):
+    """Simple rule-of-thumb severity, based on what we know actually happens in real faults."""
+    if row["poll_failed"]:
+        return "CRITICAL"
+    if pd.notna(row["avg_latency_ms"]) and row["avg_latency_ms"] > 1500:
+        return "WARNING"
+    return "INFO"
+
+def raise_alert(conn, row):
+    severity = classify_severity(row)
+    reason_parts = []
+    if row["poll_failed"]:
+        reason_parts.append("SNMP poll failure/timeout")
+    if pd.notna(row["avg_latency_ms"]) and row["avg_latency_ms"] > 1500:
+        reason_parts.append(f"high latency ({row['avg_latency_ms']}ms)")
+    if not reason_parts:
+        reason_parts.append("anomalous traffic pattern")
+    reason = "; ".join(reason_parts)
+
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO alerts (device_name, telemetry_id, reason, severity, avg_latency_ms, poll_failed)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (row["device_name"], row["id"], reason, severity, row["avg_latency_ms"], bool(row["poll_failed"])),
+        )
+    conn.commit()
+
+    log_line = f"{severity} - device={row['device_name']} telemetry_id={row['id']} reason=\"{reason}\""
+    if severity == "CRITICAL":
+        logging.critical(log_line)
+    elif severity == "WARNING":
+        logging.warning(log_line)
+    else:
+        logging.info(log_line)
+
 def main():
     conn = psycopg2.connect(**DB_CONFIG)
     df = load_data(conn)
-    conn.close()
 
     print(f"Loaded {len(df)} rows\n")
 
-    # Fill any missing values (from failed polls) with 0 so the model can process them —
-    # a missing reading during a fault is itself informative, not something to discard
     features = df[["in_octets", "out_octets", "in_errors", "out_errors", "avg_latency_ms"]].fillna(0)
-    # Convert poll_failed (True/False) into a numeric 1/0 so the model can use it directly
     features = features.assign(poll_failed=df["poll_failed"].fillna(False).astype(int))
 
-    model = IsolationForest(
-        n_estimators=100,
-        contamination="auto",  # let the model estimate this itself, since we no longer
-                                 # know the exact ratio the way we did with synthetic data
-        random_state=42,
-    )
-
+    model = IsolationForest(n_estimators=100, contamination="auto", random_state=42)
     df["prediction"] = model.fit_predict(features)
     df["is_anomaly"] = df["prediction"] == -1
 
-    print("=== Flagged anomalies ===")
-    print(df[df["is_anomaly"]][
-        ["id", "timestamp", "device_name", "avg_latency_ms", "poll_failed", "in_octets", "out_octets"]
-    ])
+    anomalies = df[df["is_anomaly"]]
+    print(f"Flagging {len(anomalies)} anomalies as alerts...\n")
 
-    print(f"\nTotal rows: {len(df)}, flagged anomalies: {df['is_anomaly'].sum()}")
+    for _, row in anomalies.iterrows():
+        raise_alert(conn, row)
+
+    conn.close()
+    print("Done. Check alerts.log and the 'alerts' table in Postgres.")
 
 if __name__ == "__main__":
     main()
